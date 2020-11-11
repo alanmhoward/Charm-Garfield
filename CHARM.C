@@ -40,26 +40,53 @@ int main(int argc, char * argv[]) {
 
   // Required for visualisations to work
   TApplication app("app", &argc, argv);
+  
+  /*******************************************/
+  /******************* Setup *****************/
+  /*******************************************/
+  
+  // The gas mixture can be that used for the x-ray tests or that used in the final detector
+  bool xrayTest = 0;  // If 0 then the real gas mix is used, else the ArCO2 mix for the xray vessel
+  
+  // The high voltage used for the anodes and the entrance window
+  double vAnodeWire = 2100;
+  double vWindow = -1000;  
 
 
   /*******************************************/
   /******************** Gas ******************/
   /*******************************************/
 
+
   // Define a new gas mixture
-  MediumMagboltz* gas = new MediumMagboltz();
-    
+  MediumMagboltz* gas = new MediumMagboltz();  
+      
   // Define the makeup of the gas
-  gas->SetComposition("he3", 81.25 , "cf4", 18.75);
+  if (xrayTest){
+    gas->SetComposition("Ar", 80. , "CO2", 20.);
+    
+    // Define the pressure [Torr] and temperature [K] of the gas
+    gas->SetPressure(1*760.0);
+    gas->SetTemperature(293.15);
+    
+    // Load the electron transport coefficients (calculated in the GasFileGenerator project)
+    gas->LoadGasFile("ar-80_co2-20_1000mbar.gas");
+    const std::string path = std::getenv("GARFIELD_HOME");
+    gas->LoadIonMobility(path + "/Data/IonMobility_Ar+_Ar.txt");  
+  }
   
-  // Define the pressure [Torr] and temperature [K] of the gas
-  gas->SetPressure(8*760.0);
-  gas->SetTemperature(293.15);
-  
-  // Load the electron transport coefficients (calculated in the GasFileGenerator project)
-  gas->LoadGasFile("3He_CF4_8bar.gas");
-  const std::string path = std::getenv("GARFIELD_HOME");
-  gas->LoadIonMobility(path + "/Data/IonMobility_He+_He.txt");
+  else{
+    gas->SetComposition("he3", 81.25 , "cf4", 18.75);
+    
+    // Define the pressure [Torr] and temperature [K] of the gas
+    gas->SetPressure(8*760.0);
+    gas->SetTemperature(293.15);
+    
+    // Load the electron transport coefficients (calculated in the GasFileGenerator project)
+    gas->LoadGasFile("3He_CF4_8bar.gas");
+    const std::string path = std::getenv("GARFIELD_HOME");
+    gas->LoadIonMobility(path + "/Data/IonMobility_He+_He.txt");
+  }
 
   // Increase the maximum electron energy (default is 40 eV)
   gas->SetMaxElectronEnergy(150);
@@ -120,9 +147,6 @@ int main(int argc, char * argv[]) {
   ComponentAnalyticField *cmp = new ComponentAnalyticField();
   cmp->SetGeometry(geo);
 
-  // Set the voltages
-  double vAnodeWire = 2100;
-  double vWindow = -1000;
 
   // Add the cathode pads as a single plane
   cmp->AddPlaneY(0,             // Y position of the plane
