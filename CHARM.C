@@ -8,26 +8,15 @@
 #include <TApplication.h>
 #include <TString.h>
 
-#include "Garfield/ViewCell.hh"
-#include "Garfield/ViewDrift.hh"
-#include "Garfield/ViewSignal.hh"
-#include "Garfield/ViewField.hh"
-#include "Garfield/ViewGeometry.hh"
-#include "Garfield/ViewMedium.hh"
-
 #include "Garfield/GeometrySimple.hh"
 #include "Garfield/SolidTube.hh"
 #include "Garfield/SolidBox.hh"
-#include "Garfield/SolidSphere.hh"
 
 #include "Garfield/MediumMagboltz.hh"
 
 #include "Garfield/ComponentAnalyticField.hh"
 #include "Garfield/Sensor.hh"
-#include "Garfield/DriftLineRKF.hh"
-#include "Garfield/TrackHeed.hh"
 #include "Garfield/AvalancheMicroscopic.hh"
-#include "Garfield/AvalancheMC.hh"
 
 using namespace Garfield;
 using namespace std;
@@ -68,24 +57,14 @@ int main(int argc, char * argv[]) {
     // Define the pressure [Torr] and temperature [K] of the gas
     gas->SetPressure(1*760.0);
     gas->SetTemperature(293.15);
-    
-    // Load the electron transport coefficients (calculated in the GasFileGenerator project)
-    gas->LoadGasFile("ar-80_co2-20_1000mbar.gas");
-    const std::string path = std::getenv("GARFIELD_HOME");
-    gas->LoadIonMobility(path + "/Data/IonMobility_Ar+_Ar.txt");  
   }
   
   else{
     gas->SetComposition("he3", 81.25 , "cf4", 18.75);
     
     // Define the pressure [Torr] and temperature [K] of the gas
-    gas->SetPressure(8*760.0);
+    gas->SetPressure(7.5*760.0);
     gas->SetTemperature(293.15);
-    
-    // Load the electron transport coefficients (calculated in the GasFileGenerator project)
-    gas->LoadGasFile("3He_CF4_8bar.gas");
-    const std::string path = std::getenv("GARFIELD_HOME");
-    gas->LoadIonMobility(path + "/Data/IonMobility_He+_He.txt");
   }
 
   // Increase the maximum electron energy (default is 40 eV)
@@ -111,7 +90,7 @@ int main(int argc, char * argv[]) {
 
   double wirePitch = 0.16; // Pitch between adjacent anode/cathode wires in cm
 
-  int nWires = 20; // The number of anode/cathode wires - this should be replaced with periodicity unless the boundary effects are required
+  int nWires = 10; // The number of anode/cathode wires - this should be replaced with periodicity unless the boundary effects are required
 
 
   // World box - centred on x = 0, stretches to accommodate all wire pairs
@@ -187,76 +166,39 @@ int main(int argc, char * argv[]) {
   }
 
 
-
   /*******************************************/
-  /************** Visualisations *************/
-  /*******************************************/   
-  
-  // Note on viewing cell and field together - the cell must be drawn last
-  // The cell coordinates may be slightly offset from the field coordinates
-
-  // View the cell
-  ViewCell *cellView = new ViewCell();
-  cellView->SetComponent(cmp);
-  TCanvas *canCell = new TCanvas("canCell","cG",600,600);
-  cellView->SetCanvas(canCell);
-  cellView->SetArea();
-  cellView->EnableWireMarkers(false);
-  cellView->Plot2d();
-  cmp->PrintCell();
-  
-  // View the field
-  ViewField *fieldView = new ViewField();
-  fieldView->SetComponent(cmp);
-  //TCanvas *canField = new TCanvas("canField","cF", 600, 600);
-  fieldView->SetCanvas(canCell);
-  fieldView->Plot("v", "colz");
-  //fieldView->Plot("v", "CONT3 same");
-  //cellView->Plot2d();
-
-
+  /************* Drift electrons *************/
   /*******************************************/
-  /*************** Drift lines ***************/
-  /*******************************************/   
+
+  AvalancheMicroscopic *avalMicro = new AvalancheMicroscopic();
   
-  DriftLineRKF *driftLine = new DriftLineRKF();
-  ViewDrift *driftView = new ViewDrift();
-  
-  // Enable signal calculation
-  //driftLine->EnableSignalCalculation(true);
-  
-  // Try to set plots to the same coords - doesn't quite work
-  driftView->SetArea(worldXmin, worldYmin, -0.5, worldXmax, worldYmax, 0.5);
-  cellView->SetArea(worldXmin, worldYmin, -0.5, worldXmax, worldYmax, 0.5);
-  
-  // Create the sensor
+  // Create a sensor and attach the component and AvalancheMicroscopic
   Sensor *sensor = new Sensor();
   sensor->AddComponent(cmp);
-  driftLine->SetSensor(sensor);
-  driftLine->EnablePlotting(driftView);
-  
-  
-  // Drift electrons
-  int nLines = 10;
-  double xStart = - 1 * wirePitch;
-  double xEnd = 1 * wirePitch;
-  
-  for (int lineNum = 0; lineNum < nLines; lineNum++){
-  
-    double lineX = xStart + (lineNum * ((xEnd - xStart)/nLines));
+  avalMicro->SetSensor(sensor);
 
-    driftLine->DriftElectron(lineX,   // Starting position in x
-               yWindow - 3*wirePitch,   // Starting position in y
-                                 0,   // Starting position in z
-                                 0    // Starting time
-    );
-    cout << "Gain: " << driftLine->GetGain() << endl;
+
+  // The number of electrons, holes and ions resulting from each avalanche
+  int ne, nh, ni;
+  // Sum over all events
+  int neSum = 0;
+
+  int nLines = 1e4;
+  for (int i = 0; i<nLines; i++){
+    // Create electrons above the central electrode
+    avalMicro->AvalancheElectron(0.08,    // x0
+                                 0.4,  // y0
+                                 0,    // z0
+                                 0,    // t0
+                                 0     // e0
+                                 );
+
+    avalMicro->GetAvalancheSize(ne, nh, ni);
+    //cout << "ne: " << ne << " nh: " << nh << " ni: " << ni << endl;
+    neSum += ne;
   }
-  
 
-  //driftLine->DriftElectron(0,1,0,0);
-  //cout << driftLine->GetGain() << endl;
-
+  cout << "Average avalanche size: " << double(neSum/double(nLines)) << endl;
 
   // This will keep the program running - need to kill it manually from terminal
   app.Run(kTRUE);
