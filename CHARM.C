@@ -29,7 +29,9 @@ int main(int argc, char * argv[]) {
 
   // Required for visualisations to work
   TApplication app("app", &argc, argv);
-  
+
+  // use strtod(argv[1], nullptr) to get the 1st argument as a float
+
   /*******************************************/
   /******************* Setup *****************/
   /*******************************************/
@@ -40,6 +42,17 @@ int main(int argc, char * argv[]) {
   // The high voltage used for the anodes and the entrance window
   double vAnodeWire = 2100;
   double vWindow = -1000;  
+  
+  // In case of xray test
+  if (xrayTest){
+    vAnodeWire = 1600;
+    vWindow = -500;
+  }
+  
+  // Displace one of the central wires in x or y
+  bool displaceWire = 0;
+  double xDis = 0.0;
+  double yDis = 0.000;
 
 
   /*******************************************/
@@ -51,6 +64,7 @@ int main(int argc, char * argv[]) {
   MediumMagboltz* gas = new MediumMagboltz();  
       
   // Define the makeup of the gas
+  // xraytest == 1
   if (xrayTest){
     gas->SetComposition("Ar", 80. , "CO2", 20.);
     
@@ -59,6 +73,7 @@ int main(int argc, char * argv[]) {
     gas->SetTemperature(293.15);
   }
   
+  // xraytest == 0
   else{
     gas->SetComposition("he3", 81.25 , "cf4", 18.75);
     
@@ -154,14 +169,16 @@ int main(int argc, char * argv[]) {
                anodeName     // label
     );
 
-    // Cathode wires, labelled as c0, c1 etc.
-    string cathodeName = string(Form("c%d", wireNum));
-    cmp->AddWire(xWire,       // x coord
-               yCathodeWire,  // y coord
-               dCathodeWire,  // wire diameter
-               0,             // wire voltage
-               cathodeName   // label
-    );
+	 // Cathode wires, labelled as c0, c1 etc.
+	 string cathodeName = string(Form("c%d", wireNum));
+	 cmp->AddWire(xWire,       // x coord
+	            yCathodeWire,  // y coord
+	            dCathodeWire,  // wire diameter
+	            0,             // wire voltage
+	            cathodeName   // label
+	 );
+    
+
 
   }
 
@@ -183,11 +200,16 @@ int main(int argc, char * argv[]) {
   // Sum over all events
   int neSum = 0;
 
-  int nLines = 1e4;
+  int nLines = 1e3;
+  
+  double x0 = 0.08;
+  double y0 = 0.4;
+  
   for (int i = 0; i<nLines; i++){
+    
     // Create electrons above the central electrode
-    avalMicro->AvalancheElectron(0.08,    // x0
-                                 0.4,  // y0
+    avalMicro->AvalancheElectron(x0,    // x0
+                                 y0,  // y0
                                  0,    // z0
                                  0,    // t0
                                  0     // e0
@@ -196,11 +218,15 @@ int main(int argc, char * argv[]) {
     avalMicro->GetAvalancheSize(ne, nh, ni);
     //cout << "ne: " << ne << " nh: " << nh << " ni: " << ni << endl;
     neSum += ne;
+    //cout << i << endl;
+    if(i%10==0){
+      cout << "Result after " << i << " electrons = " << neSum/double(i+1) << "\r" << flush;
+    }
   }
 
-  cout << "Average avalanche size: " << double(neSum/double(nLines)) << endl;
+  cout << "\nAverage avalanche size: " << double(neSum/double(nLines)) << endl;
 
   // This will keep the program running - need to kill it manually from terminal
-  app.Run(kTRUE);
+  //app.Run(kTRUE);
 
 }
